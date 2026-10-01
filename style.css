@@ -1,0 +1,153 @@
+.fr-root {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    text-align: left;
+}
+
+.fr-root h3 {
+    margin: 0;
+}
+
+.fr-inputs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+.fr-inputs textarea {
+    width: 100%;
+    min-height: 2.2em;
+    resize: vertical;
+}
+
+.fr-options,
+.fr-actions,
+.fr-fields,
+.fr-scope-tools {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 14px;
+}
+
+.fr-actions {
+    gap: 6px;
+}
+
+.fr-root .menu_button {
+    width: auto;
+    flex: 0 0 auto;
+    white-space: nowrap;
+    margin: 0;
+    padding: 4px 10px;
+}
+
+.fr-scopes {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+.fr-scope {
+    border: 1px solid var(--SmartThemeBorderColor);
+    border-radius: 8px;
+    padding: 8px;
+    min-width: 0;
+}
+
+.fr-scope-tools .fr-filter {
+    flex: 1;
+    min-width: 100px;
+    margin: 0;
+}
+
+.fr-list {
+    max-height: 180px;
+    overflow-y: auto;
+    margin: 6px 0;
+    display: flex;
+    flex-direction: column;
+}
+
+.fr-fields {
+    border-top: 1px dashed var(--SmartThemeBorderColor);
+    padding-top: 6px;
+    font-size: 0.9em;
+}
+
+.fr-status {
+    min-height: 1.4em;
+    opacity: 0.9;
+}
+
+.fr-status.fr-error {
+    color: var(--warning, #e0a040);
+}
+
+.fr-doc {
+    border: 1px solid var(--SmartThemeBorderColor);
+    border-radius: 8px;
+    padding: 6px 10px;
+    margin-bottom: 8px;
+}
+
+.fr-doc summary {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    font-weight: bold;
+}
+
+.fr-doc summary::before {
+    content: '▸';
+    transition: transform 0.15s;
+}
+
+.fr-doc[open] summary::before {
+    transform: rotate(90deg);
+}
+
+.fr-slot {
+    margin: 6px 0 6px 10px;
+}
+
+.fr-slot-label {
+    font-size: 0.85em;
+    opacity: 0.7;
+}
+
+.fr-match {
+    display: flex;
+    gap: 6px;
+    align-items: flex-start;
+    padding: 2px 0;
+    cursor: pointer;
+}
+
+.fr-snippet {
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.fr-snippet del {
+    background: rgba(220, 60, 60, 0.35);
+    text-decoration: line-through;
+}
+
+.fr-snippet ins {
+    background: rgba(60, 180, 90, 0.35);
+    text-decoration: none;
+}
+
+@media (max-width: 700px) {
+    .fr-inputs,
+    .fr-scopes {
+        grid-template-columns: 1fr;
+    }
+}
+
+.fr-root .menu_button i {
+    margin-right: 4px;
+}

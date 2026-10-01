@@ -1,0 +1,11 @@
+{
+    "display_name": "Find & Replace（世界书/角色卡查找替换）",
+    "loading_order": 100,
+    "requires": [],
+    "optional": [],
+    "js": "index.js",
+    "css": "style.css",
+    "author": "usiumia1-ctrl",
+    "version": "0.1.0",
+    "homePage": "https://github.com/usiumia1-ctrl/SillyTavern-FindReplace"
+}
