@@ -355,6 +355,9 @@ function bindPanel($root, settings) {
         $(this).closest('.fr-scope').find('.fr-list > label:visible input').prop('checked', checked);
     });
     $root.on('change', '.fr-options input, .fr-fields input', () => saveOptions($root, settings));
+    // 搜索后再改选项或范围，旧的搜索结果就不作数了，必须重新搜索
+    $root.on('change', '.fr-options input:not(#fr_backup), .fr-fields input, .fr-list input', () => invalidateResults($root));
+    $root.on('input', '#fr_find, #fr_replace', () => invalidateResults($root));
 
     $root.on('change', '.fr-doc-toggle', function () {
         $(this).closest('.fr-doc').find('.fr-match input').prop('checked', this.checked).trigger('change');
@@ -391,6 +394,14 @@ function bindPanel($root, settings) {
     });
 }
 
+function invalidateResults($root) {
+    if (!searchedOptions) return;
+    results = [];
+    searchedOptions = null;
+    $root.find('.fr-results').empty();
+    setStatus($root, '查找内容、选项或范围已更改，请重新点「搜索」。');
+}
+
 function updateCount($root) {
     const total = results.reduce((n, r) => n + r.slots.reduce((k, s) => k + s.matches.length, 0), 0);
     const checked = results.reduce((n, r) => n + r.slots.reduce((k, s) => k + s.matches.filter(m => m.checked).length, 0), 0);
@@ -415,10 +426,17 @@ async function runSearch($root, settings) {
     if (refs.length === 0) return setStatus($root, '请至少勾选一个世界书或角色。', true);
 
     const errors = [];
+    // 区分大小写时顺便统计不区分大小写能找到多少，用来提示 {{User}} 这类写法
+    const looseOptions = { ...options, caseSensitive: false };
+    const looseRe = options.caseSensitive ? buildRegExp(looseOptions) : null;
+    let looseTotal = 0;
     for (let i = 0; i < refs.length; i++) {
         setStatus($root, `正在搜索 ${i + 1}/${refs.length}…`);
         try {
             const doc = await loadDoc(refs[i], settings);
+            if (looseRe) {
+                looseTotal += doc.slots.reduce((n, slot) => n + findMatches(slot.get(), looseRe, looseOptions).length, 0);
+            }
             const slots = doc.slots
                 .map(slot => {
                     const text = slot.get();
@@ -433,6 +451,16 @@ async function runSearch($root, settings) {
     searchedOptions = { ...options };
     renderResults($root);
     updateCount($root);
+    if (results.length === 0) {
+        const hints = [];
+        if (options.skipMacros && options.find.includes('{{')) {
+            hints.push('要替换宏本身（如 {{user}}），请取消勾选「跳过 {{宏}}」后重新搜索');
+        }
+        if (looseTotal > 0) {
+            hints.push(`不区分大小写时能找到 ${looseTotal} 处（例如 {{User}}），可以取消勾选「区分大小写」后重新搜索`);
+        }
+        if (hints.length) setStatus($root, `没有找到匹配。${hints.join('；')}。`, true);
+    }
     if (errors.length) setStatus($root, `${$root.find('.fr-status').text()} 有 ${errors.length} 个读取失败：${errors.join('；')}`, true);
 }
 
@@ -460,8 +488,8 @@ async function runApply($root, settings) {
     if (count === 0) return setStatus($root, '没有勾选任何匹配，请先搜索。', true);
 
     const current = readOptions($root);
-    if (searchedOptions && (current.find !== searchedOptions.find || current.replace !== searchedOptions.replace)) {
-        return setStatus($root, '查找或替换内容在搜索后被修改过，请重新搜索再替换。', true);
+    if (!searchedOptions || Object.keys(current).some(k => current[k] !== searchedOptions[k])) {
+        return setStatus($root, '查找内容或选项在搜索后被修改过，请重新搜索再替换。', true);
     }
 
     const answer = await ctx().callGenericPopup(`确定替换 ${count} 处吗？涉及 ${picked.length} 个世界书/角色。`, POPUP_CONFIRM);
@@ -545,7 +573,14 @@ function reportRestore($root, ok, errors, prefix) {
     if (errors.length === 0) toastr.success(`${prefix}，恢复了 ${ok} 个文件`);
 }
 
+const REQUIRED_API = ['loadWorldInfo', 'saveWorldInfo', 'getWorldInfoNames', 'getOneCharacter', 'getRequestHeaders', 'callGenericPopup', 'Popup'];
+
 async function openPanel() {
+    const missing = REQUIRED_API.filter(name => typeof ctx()[name] !== 'function');
+    if (missing.length) {
+        toastr.error(`当前酒馆版本缺少接口：${missing.join(', ')}。请更新 SillyTavern 后再使用查找替换。`, '查找替换', { timeOut: 10000 });
+        return;
+    }
     const settings = getSettings();
     results = [];
     searchedOptions = null;
