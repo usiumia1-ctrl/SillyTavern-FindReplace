@@ -122,13 +122,42 @@ function findCharIndex(avatar) {
     return ctx().characters.findIndex(c => c.avatar === avatar);
 }
 
+/**
+ * 从后端读取完整角色卡，并同步到酒馆内存里的角色列表。
+ * 不依赖 getContext().getOneCharacter（1.16 才有），兼容旧版本。
+ */
+async function fetchCharacter(avatar) {
+    const response = await fetch('/api/characters/get', {
+        method: 'POST',
+        headers: ctx().getRequestHeaders(),
+        body: JSON.stringify({ avatar_url: avatar }),
+    });
+    if (!response.ok) throw new Error(`读取角色 ${avatar} 失败：${response.statusText}`);
+    const character = await response.json();
+    character.name = globalThis.DOMPurify?.sanitize(character.name) ?? character.name;
+    character.chat = String(character.chat);
+    const chid = findCharIndex(avatar);
+    if (chid !== -1) ctx().characters[chid] = character;
+    return character;
+}
+
+/** 世界书名字列表。getContext().getWorldInfoNames 只在较新版本才有，旧版本从设置接口读取 */
+async function getWorldNames() {
+    const c = ctx();
+    if (typeof c.getWorldInfoNames === 'function') return c.getWorldInfoNames();
+    const response = await fetch('/api/settings/get', {
+        method: 'POST',
+        headers: c.getRequestHeaders(),
+        body: JSON.stringify({}),
+    });
+    if (!response.ok) throw new Error(`读取世界书列表失败：${response.statusText}`);
+    const { world_names: names } = await response.json();
+    return Array.isArray(names) ? names : [];
+}
+
 async function loadCharDoc(avatar, fields) {
-    let chid = findCharIndex(avatar);
-    if (chid === -1) throw new Error(`找不到角色 ${avatar}`);
-    // 角色列表默认是“精简版”数据，先拉取完整卡片
-    await ctx().unshallowCharacter?.(chid);
-    chid = findCharIndex(avatar);
-    const fresh = ctx().characters[chid];
+    if (findCharIndex(avatar) === -1) throw new Error(`找不到角色 ${avatar}`);
+    const fresh = await fetchCharacter(avatar);
 
     const data = structuredClone(fresh.data ?? {});
     // 统一以 data.* 为准，缺失时回退到顶层（V1）字段
@@ -188,7 +217,7 @@ async function saveCharPayload(payload) {
         try { message = (await response.json()).message ?? message; } catch { /* 忽略 */ }
         throw new Error(`保存角色 ${payload.avatar} 失败：${message}`);
     }
-    await ctx().getOneCharacter(payload.avatar);
+    await fetchCharacter(payload.avatar);
     refreshCharacterEditor(payload.avatar);
 }
 
@@ -252,9 +281,8 @@ async function restoreBackup(backup) {
 
 // ───────────── 界面 ─────────────
 
-function buildPanel(settings) {
+function buildPanel(settings, worldNames) {
     const c = ctx();
-    const worldNames = c.getWorldInfoNames?.() ?? [];
     const chars = c.characters.map((ch, i) => ({ avatar: ch.avatar, name: ch.name, current: String(i) === String(c.characterId) }));
 
     const fieldBoxes = (list, selected, group) => list.map(f =>
@@ -573,7 +601,7 @@ function reportRestore($root, ok, errors, prefix) {
     if (errors.length === 0) toastr.success(`${prefix}，恢复了 ${ok} 个文件`);
 }
 
-const REQUIRED_API = ['loadWorldInfo', 'saveWorldInfo', 'getWorldInfoNames', 'getOneCharacter', 'getRequestHeaders', 'callGenericPopup', 'Popup'];
+const REQUIRED_API = ['loadWorldInfo', 'saveWorldInfo', 'getRequestHeaders', 'callGenericPopup', 'Popup'];
 
 async function openPanel() {
     const missing = REQUIRED_API.filter(name => typeof ctx()[name] !== 'function');
@@ -584,7 +612,14 @@ async function openPanel() {
     const settings = getSettings();
     results = [];
     searchedOptions = null;
-    const $panel = buildPanel(settings);
+    let worldNames;
+    try {
+        worldNames = await getWorldNames();
+    } catch (e) {
+        toastr.error(e.message, '查找替换');
+        return;
+    }
+    const $panel = buildPanel(settings, worldNames);
     const popup = new (ctx().Popup)($panel, POPUP_TEXT, '', { wide: true, large: true, allowVerticalScrolling: true, okButton: '关闭' });
     await popup.show();
 }
